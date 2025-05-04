@@ -1,0 +1,27 @@
+# Environment variables
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Virtual environment
+.venv/
+virtualenv/
+env/
+venv/
+ENV/
+
+# Temporary files
+/temp/
+
+# IDE specific
+.idea/
+.vscode/ 
