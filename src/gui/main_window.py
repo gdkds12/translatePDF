@@ -240,7 +240,7 @@ class MainGUI(QMainWindow):
         self.processing_thread = ProcessingThread(self.controller, pdf_path, output_dir, options)
         # Connect signals from the thread to GUI slots
         self.processing_thread.progress_updated.connect(self.update_progress)
-        self.processing_thread.finished.connect(self._processing_finished)
+        self.processing_thread.processing_finished.connect(self._processing_finished)
         self.processing_thread.start()
 
     @Slot(int, int, str)

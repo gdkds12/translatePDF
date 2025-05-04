@@ -1,6 +1,6 @@
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
-from azure.ai.documentintelligence.models import AnalyzeResult, AnalyzeDocumentRequest, ContentFormat
+from azure.ai.documentintelligence.models import AnalyzeResult, AnalyzeDocumentRequest
 from typing import List, Dict
 from ..models import Block, BoundingBox, Chunk
 from ..config import AZURE_DI_ENDPOINT, AZURE_DI_KEY
@@ -50,39 +50,54 @@ class AzureDocumentParser:
             poller = self.client.begin_analyze_document(
                 "prebuilt-read", # Use the "read" model for text extraction
                 AnalyzeDocumentRequest(bytes_source=temp_pdf_bytes),
-                output_content_format=ContentFormat.MARKDOWN # Or TEXT, depending on downstream needs
+                output_content_format="markdown"
             )
             result: AnalyzeResult = poller.result()
             print(f"Chunk {chunk.id}: Document Intelligence analysis complete.")
 
             if result.pages:
+                print(f"Chunk {chunk.id}: Processing {len(result.pages)} pages from DI result...")
                 for page_result in result.pages:
                     original_page_number = start_page + page_result.page_number - 1 # DI page_number is 1-based within the submitted doc
+                    print(f"  Processing DI page {page_result.page_number} (Original page: {original_page_number}). Found {len(page_result.lines) if page_result.lines else 0} lines.")
                     if page_result.lines:
                          # --- Simple block-per-line approach (Merge later) ---
                          # You might want a more sophisticated approach based on paragraphs if available
-                        for line in page_result.lines:
-                            if line.bounding_regions and line.content:
-                                # Assuming the first bounding region is the most relevant
-                                # DI coordinates are typically top-left based, relative to page dimensions
-                                region = line.bounding_regions[0]
+                        for idx, line in enumerate(page_result.lines):
+                            # Use polygon instead of bounding_regions for stable versions
+                            if line.polygon and line.content:
+                                print(f"    Line {idx}: Content='{line.content[:30]}...' Polygon found.")
                                 # DI gives polygon (points), calculate simple bbox
-                                x_coords = [p.x for p in region.polygon]
-                                y_coords = [p.y for p in region.polygon]
-                                bbox = BoundingBox(
-                                    x=min(x_coords),
-                                    y=min(y_coords),
-                                    width=max(x_coords) - min(x_coords),
-                                    height=max(y_coords) - min(y_coords)
-                                )
-                                block_id = f"p{original_page_number}_l{line.spans[0].offset if line.spans else uuid.uuid4()}"
-                                block = Block(
-                                    id=block_id,
-                                    text=line.content.strip(),
-                                    bbox=bbox,
-                                    page_number=original_page_number
-                                )
-                                extracted_blocks.append(block)
+                                # Polygon is a flat list [x0, y0, x1, y1, ...]
+                                if len(line.polygon) >= 8: # Ensure at least 4 points (quadrilateral)
+                                    x_coords = [line.polygon[i] for i in range(0, len(line.polygon), 2)]
+                                    y_coords = [line.polygon[i] for i in range(1, len(line.polygon), 2)]
+                                    
+                                    min_x = min(x_coords)
+                                    min_y = min(y_coords)
+                                    max_x = max(x_coords)
+                                    max_y = max(y_coords)
+                                    
+                                    bbox = BoundingBox(
+                                        x=min_x,
+                                        y=min_y,
+                                        width=max_x - min_x,
+                                        height=max_y - min_y
+                                    )
+                                    block_id = f"p{original_page_number}_l{line.spans[0].offset if line.spans else uuid.uuid4()}"
+                                    block = Block(
+                                        id=block_id,
+                                        text=line.content.strip(),
+                                        bbox=bbox,
+                                        page_number=original_page_number
+                                    )
+                                    extracted_blocks.append(block)
+                                    # print(f"      Created Block ID: {block_id}, BBox: ({bbox.x:.2f},{bbox.y:.2f}, w:{bbox.width:.2f}, h:{bbox.height:.2f})")
+                                else:
+                                     print(f"    Line {idx}: Polygon found but has insufficient points ({len(line.polygon)} points). Skipping.")
+
+                            else:
+                                print(f"    Line {idx}: Skipping line - Missing polygon or content. Content: '{line.content[:30] if line.content else 'N/A'}', Polygon: {'Exists' if line.polygon else 'Missing'}")
             else:
                  print(f"Chunk {chunk.id}: No pages found in Document Intelligence result.")
 

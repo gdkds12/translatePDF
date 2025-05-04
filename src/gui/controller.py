@@ -36,8 +36,11 @@ class UIController(QObject):
 
     def _initialize_processing_components(self, options: Dict[str, Any]):
         """Initializes components that depend on runtime options like font."""
-        font_name = options.get("font_name", DEFAULT_FONT_NAME)
-        font_path = options.get("font_path", DEFAULT_FONT_PATH)
+        font_name_option = options.get("font_name") # 명시적으로 None이 전달될 수 있음
+        font_name = font_name_option if font_name_option is not None else DEFAULT_FONT_NAME # None이면 기본값 사용
+        # Ensure font_path is not None, fallback to default if it is explicitly passed as None
+        font_path_option = options.get("font_path")
+        font_path = font_path_option if font_path_option is not None else DEFAULT_FONT_PATH
         font_size = options.get("font_size", 10)
         
         # Register the font first
