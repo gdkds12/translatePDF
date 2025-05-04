@@ -41,7 +41,8 @@ class UIController(QObject):
         # Ensure font_path is not None, fallback to default if it is explicitly passed as None
         font_path_option = options.get("font_path")
         font_path = font_path_option if font_path_option is not None else DEFAULT_FONT_PATH
-        font_size = options.get("font_size", 10)
+        # 기본 폰트 크기를 9로 줄임
+        font_size = options.get("font_size", 7)
         
         # Register the font first
         resolved_font_name = register_font(font_name, font_path)

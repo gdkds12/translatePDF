@@ -1,6 +1,9 @@
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
-from azure.ai.documentintelligence.models import AnalyzeResult, AnalyzeDocumentRequest
+from azure.ai.documentintelligence.models import (
+    AnalyzeResult, AnalyzeDocumentRequest,
+    DocumentAnalysisFeature # Import features enum
+)
 from typing import List, Dict
 from ..models import Block, BoundingBox, Chunk
 from ..config import AZURE_DI_ENDPOINT, AZURE_DI_KEY
@@ -50,7 +53,8 @@ class AzureDocumentParser:
             poller = self.client.begin_analyze_document(
                 "prebuilt-read", # Use the "read" model for text extraction
                 AnalyzeDocumentRequest(bytes_source=temp_pdf_bytes),
-                output_content_format="markdown"
+                output_content_format="markdown",
+                features=[DocumentAnalysisFeature.OCR_HIGH_RESOLUTION] # Request only basic OCR features
             )
             result: AnalyzeResult = poller.result()
             print(f"Chunk {chunk.id}: Document Intelligence analysis complete.")

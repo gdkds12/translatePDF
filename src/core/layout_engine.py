@@ -105,7 +105,41 @@ class LayoutEngine:
             # 원본 페이지 정보 가져오기
             original_page = original_doc.load_page(page_num - 1)
             
-            # Redaction 제거 후, 페이지 크기를 바로 가져옴
+            # --- 원본 텍스트 가리기 (Redaction 재시도) ---
+            print(f"  Applying redactions to cover original text areas for page {page_num}...")
+            redactions_applied = 0
+            POINTS_PER_INCH = 72.0
+            # 먼저 모든 redaction annotation 추가
+            for block in translated_blocks:
+                if block.page_number == page_num:
+                    bbox_x_pt = block.bbox.x * POINTS_PER_INCH
+                    bbox_y_pt = block.bbox.y * POINTS_PER_INCH
+                    bbox_width_pt = max(1.0, block.bbox.width * POINTS_PER_INCH)
+                    bbox_height_pt = max(1.0, block.bbox.height * POINTS_PER_INCH)
+                    margin = 1.0 # 약간의 여백 추가
+                    redact_rect = fitz.Rect(bbox_x_pt - margin, 
+                                            bbox_y_pt - margin, 
+                                            bbox_x_pt + bbox_width_pt + margin, 
+                                            bbox_y_pt + bbox_height_pt + margin)
+                    try:
+                        # cross_out=False 옵션 추가 (취소선 제거)
+                        original_page.add_redact_annot(redact_rect, fill=(1, 1, 1), cross_out=False) 
+                        redactions_applied += 1
+                    except Exception as redact_err:
+                         print(f"  Warning: Failed to add redaction for block {block.id}: {redact_err}")
+                         
+            # 모든 annotation 추가 후 한번에 적용 (이미지 보존)
+            if redactions_applied > 0:
+                try:
+                    # images=0 또는 fitz.PDF_REDACT_IMAGE_NONE : 이미지 제거 안 함
+                    original_page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE) 
+                    print(f"  Applied {redactions_applied} redactions without removing images.")
+                except Exception as apply_err:
+                     print(f"  Warning: Failed to apply redactions: {apply_err}")
+                     # 실패 시 원본 페이지를 계속 사용
+            # ------------------------------------
+            
+            # 이제 수정된 페이지에서 크기 및 이미지 가져오기
             page_rect = original_page.rect
             page_width, page_height = page_rect.width, page_rect.height
             
@@ -213,7 +247,6 @@ class LayoutEngine:
             paragraph = Paragraph(text_html, style)
             print(f"      [Para] Created Paragraph: Text='{text[:30].replace('<br/>', ' ')}...' Font='{paragraph.style.fontName}' Size={paragraph.style.fontSize} Color={paragraph.style.textColor}")
  
-            # 2. Draw the Paragraph within the Frame
             # --- Direct Paragraph Drawing (DEBUGGING) ---
             print(f"      [Draw] Attempting paragraph.drawOn({frame_x:.1f}, {frame_y:.1f})...")
             # **중요**: drawOn 전에 wrapOn을 호출하여 Paragraph 내부 구조 초기화
